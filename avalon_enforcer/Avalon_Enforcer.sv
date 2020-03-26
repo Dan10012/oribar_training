@@ -22,61 +22,75 @@ module Avalon_Enforcer (
 	input logic clk,    // Clock
 	input logic rst,  // Asynchronous reset active low
 
-	avalon_st_if.slave 		untrusted,
+	avalon_st_if.slave		untrusted, 
 	avalon_st_if.master 	enforced,
 
-	output logic 	valid_out_of_packet, 
-	output logic 	wrong_valid
+	output logic 	valid_out_of_packet, //An indication that goes up when a valid signal was received outside a packet.  
+	output logic 	wrong_valid 		 //An indication that goes up when a second sop goes up during a packet. 
 	
 );
-
-typedef enum {
+// state machine that determines whether the module is waiting for a message or sending it.   
+typedef enum { 
 		WAITING_MSG,
 		SENDING_MSG
-	} SM_avalon_enforcer
+	} SM_avalon_enforcer;
 
-logic	 out_sop, out_vld, out_eop, out_empty;
+logic	out_sop;
+logic	out_vld;
 
 SM_avalon_enforcer	 current_state; 
 
 always_ff @(posedge clk or negedge rst) begin
+	// If rst is low, cleans all the signals
 	if(~rst) begin
 		current_state <= WAITING_MSG;
+		untrusted.data 		= '0;
+		untrusted.valid 	= 1'b0;
+		untrusted.sop 		= 1'b0;
+		untrusted.eop 		= 1'b0;
+		untrusted.empty 	= 0;
+
+		enforced.data 		= '0;
+		enforced.valid 		= 1'b0;
+		enforced.sop 		= 1'b0;
+		enforced.eop 		= 1'b0;
+		enforced.empty 		= 0;
+		enforced.rdy 		= 1'b0;
 	end else begin
 		case (current_state)
 			WAITING_MSG: begin
-					
-					if (untrusted.sop & untrusted.valid & untrusted.rdy & !untrusted.eop) begin
-						current_state <= SENDING_MSG;
-					end
-
-					out_sop <= untrusted.sop & untrusted.valid; 
-					valid_out_of_packet <= !untrusted.sop & untrusted.valid; 
-					out_vld <= untrusted.valid & !valid_out_of_packet;
-					wrong_valid <= '0'; 
-
+				//change state condition
+				if (untrusted.sop & untrusted.valid & enforced.rdy & ~untrusted.eop) begin
+					current_state 	<= SENDING_MSG;
+				end
 			end
 			SENDING_MSG: begin
-
-					if (untrusted.valid & untrusted.rdy & untrusted.eop) begin
-						current_state <= WAITING_MSG;
-					end
-
-					wrong_valid <= untrusted.valid & untrusted.sop;
-					out_vld <= untrusted.valid ;
-					out_sop <= '0' ; 
-					valid_out_of_packet <= '0'; 
-
+				//change state condition
+				if (untrusted.valid & enforced.rdy & untrusted.eop) begin
+					current_state <= WAITING_MSG;
+				end
 			end	
 		endcase
 	end
 end
 
 always_comb begin
-	//resets all the data in the lanes
-	// first_lane_out.CLEAR_MASTER();
-	// second_lane_out.CLEAR_MASTER();
-
+	// The signal values are determined based on the current state of the module
+	case (current_state)
+			WAITING_MSG: begin
+				out_sop 			<= untrusted.sop 	& untrusted.valid; 
+				valid_out_of_packet <= ~untrusted.sop 	& untrusted.valid; 
+				out_vld 			<= untrusted.valid 	& ~valid_out_of_packet;
+				wrong_valid 		<= 1'b0; 
+			end
+			SENDING_MSG: begin
+				wrong_valid 		<= untrusted.valid & untrusted.sop;
+				out_vld 			<= untrusted.valid ;
+				out_sop 			<= 1'b0 ; 
+				valid_out_of_packet <= 1'b0; 
+			end	
+	endcase
+	// These signals are not based on the current state
 	if (out_vld) begin
 		enforced.data 	= untrusted.data ; 
 		enforced.eop 	= untrusted.eop ; 
