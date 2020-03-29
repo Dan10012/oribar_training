@@ -19,9 +19,8 @@
 //////////////////////////////////////////////////////////////////
 
 module Avalon_Enforcer (
-	input logic clk,    // Clock
-	input logic rst,  // Asynchronous reset active low
-
+	input logic clk,    
+	input logic rst, 
 	avalon_st_if.slave		untrusted, 
 	avalon_st_if.master 	enforced,
 
@@ -29,16 +28,23 @@ module Avalon_Enforcer (
 	output logic 	wrong_valid 		 //An indication that goes up when a second sop goes up during a packet. 
 	
 );
-// state machine that determines whether the module is waiting for a message or sending it.   
+
+//////////////////////////////////////////
+//// Typedefs ////////////////////////////
+//////////////////////////////////////////
+
 typedef enum { 
 		WAITING_MSG,
 		SENDING_MSG
-	} SM_avalon_enforcer;
+	} SM_avalon_enforcer; // state machine that determines whether the module is waiting for a message or sending it.   
 
-logic	out_sop;
-logic	out_vld;
+//////////////////////////////////////////
+//// Declarations ////////////////////////
+//////////////////////////////////////////
 
-SM_avalon_enforcer	 current_state; 
+logic							out_sop;
+logic							out_vld;
+SM_avalon_enforcer				current_state; 
 
 always_ff @(posedge clk or negedge rst) begin
 	// If rst is low, cleans all the signals
