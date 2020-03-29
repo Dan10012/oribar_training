@@ -22,10 +22,10 @@ module Avalon_Enforcer (
 	input logic clk,    
 	input logic rst, 
 	avalon_st_if.slave		untrusted, 
-	avalon_st_if.master 	enforced,
+	avalon_st_if.master		enforced,
 
-	output logic 	valid_out_of_packet, //An indication that goes up when a valid signal was received outside a packet.  
-	output logic 	wrong_valid 		 //An indication that goes up when a second sop goes up during a packet. 
+	output logic	valid_out_of_packet,	//An indication that goes up when a valid signal was received outside a packet.  
+	output logic	second_sop_indc			//An indication that goes up when a second sop goes up during a packet. 
 	
 );
 
@@ -33,45 +33,31 @@ module Avalon_Enforcer (
 //// Typedefs ////////////////////////////
 //////////////////////////////////////////
 
-typedef enum { 
+typedef enum logic { 
 		WAITING_MSG,
 		SENDING_MSG
-	} SM_avalon_enforcer; // state machine that determines whether the module is waiting for a message or sending it.   
+	}	sm_avalon_enforcer; 
 
 //////////////////////////////////////////
 //// Declarations ////////////////////////
 //////////////////////////////////////////
 
-logic							out_sop;
-logic							out_vld;
-SM_avalon_enforcer				current_state; 
+sm_avalon_enforcer				current_state; 
 
-always_ff @(posedge clk or negedge rst) begin
+always_ff @(posedge clk or negedge rst) begin : STATE_MACHINE
 	// If rst is low, cleans all the signals
 	if(~rst) begin
 		current_state <= WAITING_MSG;
-		untrusted.data 		= '0;
-		untrusted.valid 	= 1'b0;
-		untrusted.sop 		= 1'b0;
-		untrusted.eop 		= 1'b0;
-		untrusted.empty 	= 0;
-
-		enforced.data 		= '0;
-		enforced.valid 		= 1'b0;
-		enforced.sop 		= 1'b0;
-		enforced.eop 		= 1'b0;
-		enforced.empty 		= 0;
-		enforced.rdy 		= 1'b0;
 	end else begin
-		case (current_state)
+		unique case (current_state) // state machine that determines whether the module is waiting for a message or sending it.   
 			WAITING_MSG: begin
-				//change state condition
+				// If a message has been received, change state to SENDING_MSG
 				if (untrusted.sop & untrusted.valid & enforced.rdy & ~untrusted.eop) begin
-					current_state 	<= SENDING_MSG;
+					current_state 	<= SENDING_MSG; 
 				end
 			end
 			SENDING_MSG: begin
-				//change state condition
+				// If finished sending a message, change state to WAITING_MSG 
 				if (untrusted.valid & enforced.rdy & untrusted.eop) begin
 					current_state <= WAITING_MSG;
 				end
@@ -80,30 +66,39 @@ always_ff @(posedge clk or negedge rst) begin
 	end
 end
 
-always_comb begin
+always_comb begin : COMB_LOGIC_BY_STATE
 	// The signal values are determined based on the current state of the module
-	case (current_state)
-			WAITING_MSG: begin
-				out_sop 			<= untrusted.sop 	& untrusted.valid; 
-				valid_out_of_packet <= ~untrusted.sop 	& untrusted.valid; 
-				out_vld 			<= untrusted.valid 	& ~valid_out_of_packet;
-				wrong_valid 		<= 1'b0; 
-			end
-			SENDING_MSG: begin
-				wrong_valid 		<= untrusted.valid & untrusted.sop;
-				out_vld 			<= untrusted.valid ;
-				out_sop 			<= 1'b0 ; 
-				valid_out_of_packet <= 1'b0; 
-			end	
+	unique case (current_state)
+		WAITING_MSG: begin
+			enforced.sop 			<= untrusted.sop 	& untrusted.valid; 			//start of message if sop and valid were recieved at the same clk
+			valid_out_of_packet		 = ~untrusted.sop 	& untrusted.valid; 			//indication goes up if a valid is received not in a message
+			enforced.valid 			<= untrusted.valid 	& ~valid_out_of_packet;		//valid out is 1 as long as valid in is received during a message
+			second_sop_indc 		<= 1'b0; 
+		end
+		SENDING_MSG: begin
+			second_sop_indc 		<= untrusted.valid & untrusted.sop;				//indication goes up if a second sop is received in a message
+			enforced.valid 			<= untrusted.valid ;							//In this state the valid_out_of_packet indication is irrelevant
+			enforced.sop			<= 1'b0 ; 
+			valid_out_of_packet		<= 1'b0; 
+		end	
 	endcase
+end
+
+always_comb begin : COMB_LOGIC_NOT_BY_STATE
 	// These signals are not based on the current state
-	if (out_vld) begin
+	if (enforced.valid) begin
 		enforced.data 	= untrusted.data ; 
 		enforced.eop 	= untrusted.eop ; 
+	end else begin
+		enforced.data 	= 1'b0 ; 
+		enforced.eop 	= 1'b0; 
 	end
 	if (enforced.eop) begin
 		enforced.empty 	= untrusted.empty;
+	end else begin
+		enforced.empty 	= 0;
 	end
 end
 
 endmodule
+
