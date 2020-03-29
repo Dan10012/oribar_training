@@ -29,7 +29,7 @@ module Avalon_Enforcer_TB ();
 	avalon_st_if #(.DATA_WIDTH_IN_BYTES(DATA_WIDTH_IN_BYTES)) enforced(); 
 
 	logic 	valid_out_of_packet;
-	logic 	wrong_valid;
+	logic 	second_sop_indc;
 
 	//instantiates the items based on the avalon_st interface
 	Avalon_Enforcer avalon_enforcer_inst
@@ -39,7 +39,7 @@ module Avalon_Enforcer_TB ();
 		.untrusted(untrusted.slave),
 		.enforced(enforced.master),
 		.valid_out_of_packet(valid_out_of_packet),
-		.wrong_valid(wrong_valid) 
+		.second_sop_indc(second_sop_indc) 
 	); 
 	
 	always #5 clk = ~clk;
@@ -55,20 +55,12 @@ module Avalon_Enforcer_TB ();
 		untrusted.eop 		= 1'b0;
 		untrusted.empty 	= 0;
 
-		enforced.data 		= '0;
-		enforced.valid 		= 1'b0;
-		enforced.sop 		= 1'b0;
-		enforced.eop 		= 1'b0;
-		enforced.empty 		= 0;
 		enforced.rdy 		= 1'b0;
-
-		valid_out_of_packet = 1'b0;
-		wrong_valid 		= 1'b0;
 
 		#20;
 		rst 				= 1'b1;
 
-		//input signal values to the signals
+		//Basic TB, makes sure everything works correctly 
 		@(posedge clk);
 		enforced.rdy 		= 1'b1;
 		untrusted.valid 	= 1'b1;
@@ -83,12 +75,75 @@ module Avalon_Enforcer_TB ();
 
 		untrusted.data 		= '0;
 		untrusted.valid 	= 1'b0;
+		untrusted.eop 		= 1'b0;
+		untrusted.empty 	= 0;
+		enforced.rdy 		= 1'b0;
+
+		#15;
+		// Test a very short message, when eop and sop arrive at the same time
+		@(posedge clk);
+		enforced.rdy 		= 1'b1;
+		untrusted.valid 	= 1'b1;
+		untrusted.data 		= {DATA_WIDTH_IN_BYTES{8'd34}};
+		untrusted.sop 		= 1'b1;
+		untrusted.eop		= '1;
+		untrusted.empty		= 1; 
+		@(posedge clk);
+		untrusted.data 		= '0;
+		untrusted.valid 	= 1'b0;
 		untrusted.sop 		= 1'b0;
 		untrusted.eop 		= 1'b0;
 		untrusted.empty 	= 0;
+		enforced.rdy 		= 1'b0;
 
-		#15;
+		#15
+		//Checks Valid_out_of_packet 
+		@(posedge clk);
+		enforced.rdy 		= 1'b1;
+		untrusted.valid 	= 1'b1;
+		untrusted.data 		= {DATA_WIDTH_IN_BYTES{8'd34}};
+		untrusted.sop 		= 1'b1;
+		@(posedge clk);
+		untrusted.sop 		= 1'b0;
+		@(posedge clk);
+		untrusted.eop		= '1;
+		untrusted.empty		= 1; 
+		@(posedge clk);
+		untrusted.data 		= '0;
+		untrusted.valid 	= 1'b0;
+		untrusted.eop 		= 1'b0;
+		untrusted.empty 	= 0;
+		@(posedge clk);
+		untrusted.valid 	= 1'b1;
+		@(posedge clk);
+		untrusted.valid 	= 1'b0;
+		enforced.rdy 		= 1'b0;
 
+		#15
+		//Checks second sop indicator
+		@(posedge clk);
+		enforced.rdy 		= 1'b1;
+		untrusted.valid 	= 1'b1;
+		untrusted.data 		= {DATA_WIDTH_IN_BYTES{8'd34}};
+		untrusted.sop 		= 1'b1;
+		@(posedge clk);
+		untrusted.sop 		= 1'b0;
+		@(posedge clk);
+		untrusted.sop 		= 1'b1;
+		@(posedge clk);
+		untrusted.sop 		= 1'b0;
+		@(posedge clk);
+		untrusted.eop		= '1;
+		untrusted.empty		= 1; 
+		@(posedge clk);
+
+		untrusted.data 		= '0;
+		untrusted.valid 	= 1'b0;
+		untrusted.eop 		= 1'b0;
+		untrusted.empty 	= 0;
+		enforced.rdy 		= 1'b0;		
+
+		#5
 		$finish();
 
 	end
