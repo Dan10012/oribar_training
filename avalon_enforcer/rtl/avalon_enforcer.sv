@@ -44,7 +44,7 @@ typedef enum logic {
 
 sm_avalon_enforcer				current_state; 
 
-always_ff @(posedge clk or negedge rst) begin : STATE_MACHINE
+always_ff @(posedge clk or negedge rst) begin : state_machine
 	// If rst is low, cleans all the signals
 	if(~rst) begin
 		current_state <= WAITING_MSG;
@@ -66,13 +66,13 @@ always_ff @(posedge clk or negedge rst) begin : STATE_MACHINE
 	end
 end
 
-always_comb begin : COMB_LOGIC_BY_STATE
+always_comb begin : comb_logic_by_state
 	// The signal values are determined based on the current state of the module
 	unique case (current_state)
 		WAITING_MSG: begin
-			enforced.sop 			= untrusted.sop 	& untrusted.valid; 			//start of message if sop and valid were recieved at the same clk
-			valid_out_of_packet		= ~untrusted.sop 	& untrusted.valid; 			//indication goes up if a valid is received not in a message
-			enforced.valid 			= untrusted.valid 	& ~valid_out_of_packet;		//valid out is 1 as long as valid in is received during a message
+			enforced.sop 			= untrusted.sop & untrusted.valid; 			//start of message if sop and valid were recieved at the same clk
+			valid_out_of_packet		= ~untrusted.sop & untrusted.valid; 			//indication goes up if a valid is received not in a message
+			enforced.valid 			= untrusted.valid & ~valid_out_of_packet;		//valid out is 1 as long as valid in is received during a message
 			second_sop_indc 		= 1'b0; 
 		end
 		SENDING_MSG: begin
@@ -84,7 +84,7 @@ always_comb begin : COMB_LOGIC_BY_STATE
 	endcase
 end
 
-always_comb begin : COMB_LOGIC_NOT_BY_STATE
+always_comb begin : siganl_value_assignments 
 	// These signals are not based on the current state
 	if (enforced.valid) begin
 		enforced.data 	= untrusted.data ; 
