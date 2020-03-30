@@ -143,7 +143,50 @@ module avalon_enforcer_tb ();
 		untrusted.empty 	= 0;
 		enforced.rdy 		= 1'b0;		
 
-		#5
+		#15
+		//Tests a case when the message isn't contiguous, valid goes down in the middle of the message
+		@(posedge clk);
+		enforced.rdy 		= 1'b1;
+		untrusted.valid 	= 1'b1;
+		untrusted.data 		= {DATA_WIDTH_IN_BYTES{8'd34}};
+		untrusted.sop 		= 1'b1;
+		@(posedge clk);
+		untrusted.sop 		= 1'b0;
+		untrusted.valid 	= 1'b0;
+		@(posedge clk);
+		@(posedge clk);
+		untrusted.valid 	= 1'b1;
+		untrusted.eop		= '1;
+		untrusted.empty		= 1; 
+		@(posedge clk);
+
+		untrusted.data 		= '0;
+		untrusted.valid 	= 1'b0;
+		untrusted.eop 		= 1'b0;
+		untrusted.empty 	= 0;
+		enforced.rdy 		= 1'b0;
+
+		#15
+		//Tests a case when empty doesn't go up with eop 
+		@(posedge clk);
+		enforced.rdy 		= 1'b1;
+		untrusted.valid 	= 1'b1;
+		untrusted.data 		= {DATA_WIDTH_IN_BYTES{8'd34}};
+		untrusted.sop 		= 1'b1;
+		@(posedge clk);
+		untrusted.sop 		= 1'b0;
+		@(posedge clk);
+		untrusted.empty		= 1; 
+		@(posedge clk);
+		untrusted.eop		= '1;
+		@(posedge clk);
+
+		untrusted.data 		= '0;
+		untrusted.valid 	= 1'b0;
+		untrusted.eop 		= 1'b0;
+		untrusted.empty 	= 0;
+		enforced.rdy 		= 1'b0;
+
 		$finish();
 
 	end
