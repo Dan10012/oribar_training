@@ -1,0 +1,4 @@
+src/avalon_st/generic_func_pack.sv
+src/avalon_st/avalon_st_if.sv
+src/enabled_avalon_st_connection/enabled_avalon_st_connection.sv
+src/tb/top_tb.sv
